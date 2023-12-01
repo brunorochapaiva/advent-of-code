@@ -5,6 +5,8 @@ import Data.List
 import Data.Maybe
 import Text.Read
 
+import Utils
+
 extractDigit :: String -> Maybe Char
 extractDigit ('o' : 'n' : 'e' : _)             = Just '1'
 extractDigit ('t' : 'w' : 'o' : _)             = Just '2'
@@ -19,13 +21,13 @@ extractDigit (c : _)                           = Just c
 extractDigit []                                = Nothing
 
 convertWordsToDigits :: String -> String
-convertWordsToDigits = concat . map (maybeToList . extractDigit) . tails
+convertWordsToDigits = mapMaybe extractDigit . tails
 
 getCalibrationValue :: String -> Maybe Int
-getCalibrationValue cs = readMaybe $ map ($ filter isDigit cs) [head, last]
+getCalibrationValue cs = mapM ($ filter isDigit cs) [headMaybe, lastMaybe] >>= readMaybe
 
 getSumOfCalibrations :: [String] -> Maybe Int
-getSumOfCalibrations = fmap sum . sequence . map getCalibrationValue
+getSumOfCalibrations = fmap sum . mapM getCalibrationValue
 
 main :: IO ()
 main = do
