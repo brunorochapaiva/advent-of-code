@@ -1,4 +1,4 @@
-module Day1 where
+module Day01 where
 
 import Data.Char
 import Data.List
@@ -31,7 +31,7 @@ getSumOfCalibrations = fmap sum . mapM getCalibrationValue
 
 main :: IO ()
 main = do
-  input <- readFile "input.txt"
+  input <- readFile "input01.txt"
   let entries = lines input
       answer1 = getSumOfCalibrations entries
       answer2 = getSumOfCalibrations $ map convertWordsToDigits entries
