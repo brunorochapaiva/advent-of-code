@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Day05 where
 
 import Control.Applicative
@@ -11,19 +13,16 @@ import Parser
 
 seedParser :: Parser [(Int,Int)]
 seedParser = atomic $ do
-  match' "seeds:"
-  parseWhitespace
-  many $ do { n <- parseNat ; parseWhitespace ; pure (n,1) }
+  match' "seeds:" ; parseWhitespace
+  many (fmap (,1) parseNatAndSpace)
 
 seedParserPairs :: Parser [(Int, Int)]
 seedParserPairs = atomic $ do
   match' "seeds:"
   parseWhitespace
   many $ atomic $ do
-    start <- parseNat
-    parseWhitespace
-    range <- parseNat
-    parseWhitespace
+    start <- parseNatAndSpace
+    range <- parseNatAndSpace
     pure (start, range)
 
 pureMapInterval :: (Bool, Int, Int) -> [(Bool, Int, Int)]
@@ -54,25 +53,19 @@ addMapInterval source target range (mapped, s, r)
     mapOverlapsMiddle = s < source && end < e
 
 
-helper :: Parser ((Bool, Int, Int) -> [(Bool, Int, Int)])
-helper = atomic $ do
-  target <- parseNat
-  parseWhitespace
-  source <- parseNat
-  parseWhitespace
-  range <- parseNat
-  parseWhitespace
-  let f = addMapInterval source target range
-  g <- helper <|> pure pureMapInterval
-  pure (f >=> g)
+intermediateMapParser :: Parser ((Bool, Int, Int) -> [(Bool, Int, Int)])
+intermediateMapParser = atomic $ do
+  target <- parseNatAndSpace
+  source <- parseNatAndSpace
+  range  <- parseNatAndSpace
+  g      <- intermediateMapParser <|> pure pureMapInterval
+  pure (addMapInterval source target range >=> g)
 
 mapParser :: Parser ((Int, Int) -> [(Int, Int)])
 mapParser = atomic $ do
   many $ matchIf' (not . isSpace)
-  parseWhitespace
-  match' "map:"
-  parseWhitespace
-  f <- helper
+  parseWhitespace ; match' "map:" ; parseWhitespace
+  f <- intermediateMapParser
   parseWhitespace
   pure (map removeBool . f . addFalse)
   where
@@ -83,16 +76,10 @@ mapParser = atomic $ do
     removeBool (_, s, r) = (s, r)
 
 inputParser :: Parser ([ (Int, Int) ], [ (Int, Int) -> [(Int, Int)] ])
-inputParser = do
-  seeds <- seedParser
-  maps  <- many mapParser
-  pure (seeds, maps)
+inputParser = (,) <$> seedParser <*> many mapParser
 
 inputParserPairs :: Parser ([ (Int, Int) ], [ (Int, Int) -> [(Int, Int)] ])
-inputParserPairs = do
-  seeds <- seedParserPairs
-  maps  <- many mapParser
-  pure (seeds, maps)
+inputParserPairs = (,) <$> seedParserPairs <*> many mapParser
 
 getMinLocation :: ([ (Int, Int) ], [ (Int, Int) -> [(Int, Int)] ]) -> Int
 getMinLocation (seeds, maps) = fst
@@ -101,21 +88,12 @@ getMinLocation (seeds, maps) = fst
 
 input = readFile "input05.txt"
 
-f :: String -> Int
-f s = length $ snd $ fromJust $ fst $ parse inputParser s
-
-f1 :: String -> (Int, Int) -> [(Int, Int)]
-f1 s = head $ snd $ fromJust $ fst $ parse inputParser s
-
-f2 :: String -> (Int, Int) -> [(Int, Int)]
-f2 s = head $ tail $ snd $ fromJust $ fst $ parse inputParser s
-
 main :: IO ()
 main = do
   input <- readFile "input05.txt"
   let entries = input
-      answer1 = fmap getMinLocation $ fst $ parse inputParser input
-      answer2 = fmap getMinLocation $ fst $ parse inputParserPairs input
+      answer1 = getMinLocation <$> exec inputParser input
+      answer2 = getMinLocation <$> exec inputParserPairs input
   putStrLn $ concat [ "The first answer is " , show answer1 , ".\n"
                     , "The second answer is " , show answer2 , "."
                     ]

@@ -9,6 +9,9 @@ import Data.Maybe
 
 newtype Parser a = Parser { parse :: String -> (Maybe a, String) }
 
+exec :: Parser a -> String -> Maybe a
+exec p s = fst (parse p s)
+
 instance Functor Parser where
   fmap f p = Parser $ \inp -> let (mx, out) = parse p inp
                                in (fmap f mx, out)
@@ -67,3 +70,6 @@ parseNat = do
 
 parseWhitespace :: Parser String
 parseWhitespace = many $ matchIf' isSpace
+
+parseNatAndSpace :: Parser Int
+parseNatAndSpace = parseNat >>= \n -> parseWhitespace >> pure n
