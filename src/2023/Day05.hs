@@ -86,11 +86,11 @@ getMinLocation (seeds, maps) = fst
                              $ minimumBy (compare `on` fst)
                              $ foldl (>>=) seeds maps
 
-input = readFile "input05.txt"
+input = readFile "../../inputs/2023/day05/real-input.txt"
 
 main :: IO ()
 main = do
-  input <- readFile "input05.txt"
+  input <- input
   let entries = input
       answer1 = getMinLocation <$> exec inputParser input
       answer2 = getMinLocation <$> exec inputParserPairs input
