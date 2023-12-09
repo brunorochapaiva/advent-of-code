@@ -68,8 +68,26 @@ parseNat = do
   guard (ns /= [])
   pure $ read ns
 
+parseInt :: Parser Int
+parseInt = (matchChar' '-' >> negate <$> parseNat) <|> parseNat
+
 parseWhitespace :: Parser String
 parseWhitespace = many $ matchIf' isSpace
 
+parseWhitespace' :: Parser String
+parseWhitespace' = many $ matchIf' (\c -> c /= '\n' && isSpace c)
+
+parseNewline :: Parser ()
+parseNewline = void $ matchIf' (== '\n')
+
 parseNatAndSpace :: Parser Int
 parseNatAndSpace = parseNat >>= \n -> parseWhitespace >> pure n
+
+parseNatAndSpace' :: Parser Int
+parseNatAndSpace' = parseNat >>= \n -> parseWhitespace' >> pure n
+
+parseIntAndSpace :: Parser Int
+parseIntAndSpace = parseInt >>= \n -> parseWhitespace >> pure n
+
+parseIntAndSpace' :: Parser Int
+parseIntAndSpace' = parseInt >>= \n -> parseWhitespace' >> pure n
