@@ -1,13 +1,13 @@
-module Template where
+module Day25 where
 
 import Parser
 import Utils
 
 input :: IO String
-input = readFile "../../inputs/2023/day??/real-input.txt"
+input = readFile "../../inputs/2023/day25/real-input.txt"
 
 exampleInput :: IO String
-exampleInput = readFile "../../inputs/2023/day??/example-input-1.txt"
+exampleInput = readFile "../../inputs/2023/day25/example-input-1.txt"
 
 main :: IO ()
 main = do
