@@ -53,17 +53,19 @@ countSteps (dirs, nodes) = go (cycle dirs) "AAA" (Just 0)
             R -> go dirs right ((1+) <$> n)
 
 countGhostlySteps :: ([Direction], [(String, String, String)]) -> Maybe Int
-countGhostlySteps (dirs, nodes) =
-  go (cycle dirs) (filter ((=='A') . last) $ map fst3 nodes) (Just 0)
+countGhostlySteps (dirs, nodes) = fmap (foldr lcm 1)
+                                $ mapM (go (cycle dirs) (Just 0))
+                                $ filter ((=='A') . last)
+                                $ map fst3 nodes
   where
-    go :: [Direction] -> [String] -> Maybe Int -> Maybe Int
-    go (d : dirs) currNodes n
-      | all ((=='Z') . last) currNodes = n
-      | otherwise = do
-          newNodes <- mapM (\node -> find ((==node) . fst3) nodes) currNodes
+    go :: [Direction] -> Maybe Int -> String -> Maybe Int
+    go (d : dirs) n node
+      | last node == 'Z' = n
+      | otherwise        = do
+          (_, left, right) <- find ((==node) . fst3) nodes
           case d of
-            L -> go dirs (map snd3 newNodes) ((1+) <$> n)
-            R -> go dirs (map trd3 newNodes) ((1+) <$> n)
+            L -> go dirs ((1+) <$> n) left
+            R -> go dirs ((1+) <$> n) right
 
 input :: IO String
 input = readFile "../../inputs/2023/day08/real-input.txt"
