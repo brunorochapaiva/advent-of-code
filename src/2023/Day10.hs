@@ -53,6 +53,9 @@ getStepsToHalf tiles = do
   path  <- findPipePath tiles start
   pure (length path `div` 2)
 
+countTilesInside :: [[Char]] -> Maybe Int
+countTilesInside tiles = Nothing
+
 input :: IO String
 input = readFile "../../inputs/2023/day10/real-input.txt"
 
@@ -63,7 +66,7 @@ main :: IO ()
 main = do
   input <- lines <$> input
   let answer1 = getStepsToHalf input
-      answer2 = 0
+      answer2 = countTilesInside input
   putStrLn $ concat [ "The first answer is " , show answer1 , ".\n"
                     , "The second answer is " , show answer2 , "."
                     ]
