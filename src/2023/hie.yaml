@@ -1,0 +1,88 @@
+cradle:
+  cabal:
+    - path: "./Main.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Utils.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Parser.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./State.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day01.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day02.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day03.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day04.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day05.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day06.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day07.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day08.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day09.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day10.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day11.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day12.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day13.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day14.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day15.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day16.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day17.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day18.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day19.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day20.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day21.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day22.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day23.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day24.hs"
+      component: "aoc2023:exe:aoc"
+
+    - path: "./Day25.hs"
+      component: "aoc2023:exe:aoc"
