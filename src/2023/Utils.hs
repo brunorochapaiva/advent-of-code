@@ -16,6 +16,12 @@ splitWhen p xs = go xs []
       | otherwise = go xs (x : acc)
     go [] acc = [ reverse acc ]
 
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf n = go
+  where
+    go [] = []
+    go xs = let (front, back) = splitAt n xs in front : go back
+
 (!?) :: [a] -> Int -> Maybe a
 xs !? n
   | n < 0     = Nothing

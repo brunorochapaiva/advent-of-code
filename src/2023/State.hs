@@ -1,173 +1,231 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE Rank2Types #-}
 
-module State where
+module State ( MapState
+             , runMapState
+             , evalMapState
+             , execMapState
+             , getCoord
+             , getBounds
+             , getTile
+             , getTiles
+             , getRow
+             , getCol
+             , getOther
+             , getsOther
+             , isInside
+             , atLeftEdge
+             , atRightEdge
+             , atTopEdge
+             , atBottomEdge
+             , putTile
+             , modifyTile
+             , putOther
+             , modifyOther
+             , moveTo
+             , moveLeft
+             , moveRight
+             , moveUp
+             , moveDown
+             , wrapLeft
+             , wrapRight
+             , wrapUp
+             , wrapDown
+             )where
 
 import Control.Applicative
 import Control.Arrow
 import Control.Monad
-import Data.Maybe
-import Data.List
+import Control.Monad.ST  (ST, runST)
 
-import Utils
+import qualified Data.Array.MArray as MA
+import Data.Array.MArray (getElems, readArray, writeArray, modifyArray)
+import Data.Array.ST     (STArray, newListArray)
+import Data.Ix           (range, inRange)
+import Data.STRef        (STRef, newSTRef, readSTRef, writeSTRef, modifySTRef)
+import Data.Tuple        (swap)
 
--- General state
-
-newtype State s a = State {runState :: s -> (a, s)}
-
-evalState :: State s a -> s -> a
-evalState m = fst . runState m
-
-execState :: State s a -> s -> s
-execState m = snd . runState m
-
-instance Functor (State s) where
-  fmap f m = State $ first f . runState m
-
-instance Applicative (State s) where
-  pure x = State (x,)
-
-  mf <*> mx = State $ \s -> let (f, s')  = runState mf s
-                                (x, s'') = runState mx s'
-                             in (f x, s'')
-
-instance Monad (State s) where
-  mx >>= f = State $ \s -> let (x, s') = runState mx s
-                            in runState (f x) s'
-
-get :: State s s
-get = State $ \s -> (s, s)
-
-gets :: (s -> a) -> State s a
-gets f = fmap f get
-
-put :: s -> State s ()
-put s = State $ const ((), s)
-
-modify :: (s -> s) -> State s ()
-modify f = State $ ((),) . f
+import Utils             (chunksOf)
 
 -- State for a grid map
+-- Convention: coord is (col, row)
+-- Convention: top left corner is (0,0)
 
-data MapStateVar t s = MapStateVar { tiles :: [[t]]
-                                   , coord :: (Int, Int)
-                                   , other :: s
-                                   }
+data MapStateRefs r t a = MapStateRefs { tiles  :: STArray r (Int, Int) t
+                                       , coord  :: STRef r (Int, Int)
+                                       , other  :: STRef r a
+                                       }
 
-newtype MapState t s a = MapState { unMapState :: State (MapStateVar t s) a }
+newtype MapState t s a =
+  MapState { unMapState :: forall r . MapStateRefs r t s -> ST r a }
 
 instance Functor (MapState t s) where
-  fmap f m = MapState $ f <$> unMapState m
+  fmap f m = MapState (fmap f . unMapState m)
 
 instance Applicative (MapState t s) where
-  pure x = MapState $ pure x
+  pure x = MapState (const $ pure x)
 
-  mf <*> mx = MapState $ unMapState mf <*> unMapState mx
+  mf <*> mx = MapState (\r -> unMapState mf r <*> unMapState mx r)
 
 instance Monad (MapState t s) where
-  mx >>= f = MapState $ unMapState mx >>= unMapState . f
+  mx >>= f = MapState (\r -> unMapState mx r >>= (\x -> unMapState (f x) r))
 
-runMapState :: [[t]] -> (Int, Int) -> s -> MapState t s a -> a
-runMapState ts coord other m = evalState (unMapState m)
-                             $ MapStateVar ts coord other
+runMapState :: [[t]] -> (Int, Int) -> s -> MapState t s a -> Maybe (a, s)
+runMapState ts coord other m
+  | isIllFormed = Nothing
+  | otherwise   = Just $ runST $ do
+      tilesR <- newListArray ((0, 0), (rows, cols)) (concat ts)
+      coordR <- newSTRef coord
+      otherR <- newSTRef other
+      answer <- unMapState m $ MapStateRefs tilesR coordR otherR
+      other' <- readSTRef otherR
+      pure (answer, other')
+  where
+    rows    = length ts        :: Int
+    cols    = length (head ts) :: Int
 
--- Finding location inside grid
+    isIllFormed :: Bool
+    isIllFormed = rows <= 0 || cols <= 0 || any ((/= cols) . length) ts
 
-atLeftEdge :: MapState t s Bool
-atLeftEdge = MapState $ gets $ (== 0) . fst . coord
+evalMapState :: [[t]] -> (Int, Int) -> s -> MapState t s a -> Maybe a
+evalMapState ts coord other m = fst <$> runMapState ts coord other m
 
-atRightEdge :: MapState t s Bool
-atRightEdge = MapState $ do
-  (x,y) <- gets coord
-  ts    <- gets tiles
-  pure $ elem x $ fmap (subtract 1 . length) (ts !? y)
-
-atTopEdge :: MapState t s Bool
-atTopEdge = MapState $ gets $ (== 0) . snd . coord
-
-atBottomEdge :: MapState t s Bool
-atBottomEdge = MapState $ do
-  (x,y) <- gets coord
-  ts    <- gets tiles
-  pure $ y == length ts - 1
-
-isInside :: (Int, Int) -> MapState t s Bool
-isInside (x,y) = MapState $ do
-  ts <- gets tiles
-  let rows = length ts
-      cols = maybe 0 length $ headMaybe ts
-  pure $ 0 <= x && x < cols && 0 <= y && y < rows
-
--- Moving along the grid
-
-moveLeft :: MapState t s Bool
-moveLeft = MapState $ do
-  atLeftEdge <- unMapState atLeftEdge
-  unless atLeftEdge $ modify (\s -> s{ coord = first (subtract 1) (coord s) })
-  pure $ not atLeftEdge
-
-moveRight :: MapState t s Bool
-moveRight = MapState $ do
-  atRightEdge <- unMapState atRightEdge
-  unless atRightEdge $ modify (\s -> s{ coord = first (+ 1) (coord s) })
-  pure $ not atRightEdge
-
-moveUp :: MapState t s Bool
-moveUp = MapState $ do
-  atTopEdge <- unMapState atTopEdge
-  unless atTopEdge $ modify (\s -> s{ coord = first (subtract 1) (coord s) })
-  pure $ not atTopEdge
-
-moveDown :: MapState t s Bool
-moveDown = MapState $ do
-  atBottomEdge <- unMapState atBottomEdge
-  unless atBottomEdge $ modify (\s -> s{ coord = first (+ 1) (coord s) })
-  pure $ not atBottomEdge
-
-moveTo :: (Int, Int) -> MapState t s Bool
-moveTo coord = MapState $ do
-  isInside <- unMapState $ isInside coord
-  when isInside $ modify (\s -> s{ coord = coord })
-  pure isInside
+execMapState :: [[t]] -> (Int, Int) -> s -> MapState t s a -> Maybe s
+execMapState ts coord other m = snd <$> runMapState ts coord other m
 
 -- Getters
 
 getCoord :: MapState t s (Int, Int)
-getCoord = MapState $ gets coord
+getCoord = MapState (readSTRef . coord)
+
+getBounds :: MapState t s (Int, Int)
+getBounds = MapState (fmap snd . MA.getBounds . tiles)
 
 getTile :: MapState t s t
-getTile = MapState $ do
-  (x,y) <- gets coord
-  ts    <- gets tiles
-  pure $ fromJust (fromJust (ts !? y) !? x)
+getTile = MapState $ \refs -> do
+  coord <- readSTRef (coord refs)
+  readArray (tiles refs) coord
 
 getTiles :: MapState t s [[t]]
-getTiles = MapState $ gets tiles
+getTiles = MapState $ \refs -> do
+  (_, (cols, rows)) <- MA.getBounds (tiles refs)
+  elems             <- getElems (tiles refs)
+  pure (chunksOf cols elems)
 
 getRow :: MapState t s [t]
-getRow = MapState $ do
-  (x,y) <- gets coord
-  ts    <- gets tiles
-  pure $ fromJust (ts !? y)
+getRow = MapState $ \refs -> do
+  (_, (cols, rows)) <- MA.getBounds (tiles refs)
+  (col, row)        <- readSTRef (coord refs)
+  let readElem = readArray (tiles refs)
+      is       = range ((0, row), (cols - 1, row))
+  mapM readElem is
 
 getCol :: MapState t s [t]
-getCol = MapState $ do
-  (x,y) <- gets coord
-  ts    <- gets tiles
-  pure $ fromJust (transpose ts !? y)
+getCol = MapState $ \refs -> do
+  (_, (cols, rows)) <- MA.getBounds (tiles refs)
+  (col, row)        <- readSTRef (coord refs)
+  let readElem = readArray (tiles refs)
+      is       = range ((col, 0), (col, rows - 1))
+  mapM readElem is
 
 getOther :: MapState t s s
-getOther = MapState $ gets other
+getOther = MapState (readSTRef . other)
 
 getsOther :: (s -> a) -> MapState t s a
-getsOther f = MapState $ gets $ f . other
+getsOther f = MapState (fmap f . readSTRef . other)
+
+-- Finding location inside grid
+
+atLeftEdge :: MapState t s Bool
+atLeftEdge = MapState $ \refs -> do
+  (col,row) <- readSTRef (coord refs)
+  pure $ col == 0
+
+atRightEdge :: MapState t s Bool
+atRightEdge = MapState $ \refs -> do
+  (_, (cols, rows)) <- MA.getBounds (tiles refs)
+  (col,row) <- readSTRef (coord refs)
+  pure $ col == cols - 1
+
+atTopEdge :: MapState t s Bool
+atTopEdge = MapState $ \refs -> do
+  (col,row) <- readSTRef (coord refs)
+  pure $ row == 0
+
+atBottomEdge :: MapState t s Bool
+atBottomEdge = MapState $ \refs -> do
+  (_, (cols, rows)) <- MA.getBounds (tiles refs)
+  (col,row) <- readSTRef (coord refs)
+  pure $ row == rows - 1
+
+isInside :: (Int, Int) -> MapState t s Bool
+isInside (x,y) = MapState $ \refs -> do
+  (_, (cols, rows)) <- MA.getBounds (tiles refs)
+  pure $ 0 <= x && x < cols && 0 <= y && y < rows
 
 -- Setters
 
-setTile :: t -> MapState t s ()
-setTile t = undefined
+putTile :: t -> MapState t s ()
+putTile t = MapState $ \refs -> do
+  coord <- readSTRef (coord refs)
+  writeArray (tiles refs) coord t
+
+modifyTile :: (t -> t) -> MapState t s ()
+modifyTile f = MapState $ \refs -> do
+  coord <- readSTRef (coord refs)
+  modifyArray (tiles refs) coord f
 
 putOther :: s -> MapState t s ()
-putOther other = MapState $ modify (\s -> s{ other = other })
+putOther o = MapState $ \refs -> writeSTRef (other refs) o
 
 modifyOther :: (s -> s) -> MapState t s ()
-modifyOther f = MapState $ modify (\s -> s{ other = f (other s) })
+modifyOther f = MapState $ \refs -> modifySTRef (other refs) f
+
+moveTo :: (Int, Int) -> MapState t s Bool
+moveTo c = MapState $ \refs -> do
+  isInside <- unMapState (isInside c) refs
+  when isInside $ writeSTRef (coord refs) c
+  pure isInside
+
+moveLeft :: MapState t s Bool
+moveLeft = MapState $ \refs -> do
+  atLeftEdge <- unMapState atLeftEdge refs
+  unless atLeftEdge $ modifySTRef (coord refs) $ first (subtract 1)
+  pure $ not atLeftEdge
+
+moveRight :: MapState t s Bool
+moveRight = MapState $ \refs -> do
+  atRightEdge <- unMapState atRightEdge refs
+  unless atRightEdge $ modifySTRef (coord refs) $ first (+ 1)
+  pure $ not atRightEdge
+
+moveUp :: MapState t s Bool
+moveUp = MapState $ \refs -> do
+  atTopEdge <- unMapState atTopEdge refs
+  unless atTopEdge $ modifySTRef (coord refs) $ second (subtract 1)
+  pure $ not atTopEdge
+
+moveDown :: MapState t s Bool
+moveDown = MapState $ \refs -> do
+  atBottomEdge <- unMapState atBottomEdge refs
+  unless atBottomEdge $ modifySTRef (coord refs) $ second (+ 1)
+  pure $ not atBottomEdge
+
+wrapLeft :: MapState t s ()
+wrapLeft = MapState $ \refs -> do
+  (_, (cols, rows)) <- MA.getBounds (tiles refs)
+  modifySTRef (coord refs) $ first (mod cols . subtract 1)
+
+wrapRight :: MapState t s ()
+wrapRight = MapState $ \refs -> do
+  (_, (cols, rows)) <- MA.getBounds (tiles refs)
+  modifySTRef (coord refs) $ first (mod cols . (+ 1))
+
+wrapUp :: MapState t s ()
+wrapUp = MapState $ \refs -> do
+  (_, (cols, rows)) <- MA.getBounds (tiles refs)
+  modifySTRef (coord refs) $ second (mod rows . subtract 1)
+
+wrapDown :: MapState t s ()
+wrapDown = MapState $ \refs -> do
+  (_, (cols, rows)) <- MA.getBounds (tiles refs)
+  modifySTRef (coord refs) $ second (mod rows . (+ 1))

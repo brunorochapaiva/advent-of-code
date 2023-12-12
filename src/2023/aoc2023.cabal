@@ -9,7 +9,8 @@ build-type:      Simple
 executable aoc
   main-is:          Main.hs
   hs-source-dirs:   .
-  build-depends:    base >= 4 && < 5
+  build-depends:    base >= 4.9 && < 4.20,
+                    array >= 0.5.6 && < 0.5.7
   other-modules:    Utils, Parser, State,
                     Day01, Day02, Day03,
                     Day04, Day05, Day06,
