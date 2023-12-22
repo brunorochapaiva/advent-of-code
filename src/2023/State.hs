@@ -70,11 +70,11 @@ instance Monad (MapState t s) where
   mx >>= f = MapState (\r -> unMapState mx r >>= (\x -> unMapState (f x) r))
 
 runMapState :: [[t]] -> (Int, Int) -> s -> MapState t s a -> Maybe (a, s)
-runMapState ts coord other m
-  | isIllFormed = Nothing
-  | otherwise   = Just $ runST $ do
-      tilesR <- newListArray ((0, 0), (rows, cols)) (concat ts)
-      coordR <- newSTRef coord
+runMapState ts (row, col) other m
+  | not isWellFormed = Nothing
+  | otherwise        = Just $ runST $ do
+      tilesR <- newListArray ((0, 0), (rows-1, cols-1)) (concat ts)
+      coordR <- newSTRef (row, col)
       otherR <- newSTRef other
       answer <- unMapState m $ MapStateRefs tilesR coordR otherR
       other' <- readSTRef otherR
@@ -83,8 +83,9 @@ runMapState ts coord other m
     rows    = length ts        :: Int
     cols    = length (head ts) :: Int
 
-    isIllFormed :: Bool
-    isIllFormed = rows <= 0 || cols <= 0 || any ((/= cols) . length) ts
+    isWellFormed :: Bool
+    isWellFormed = 0 < rows && 0 < cols && all ((== cols) . length) ts
+                  && 0 <= row && row < rows && 0 <= col && col < cols
 
 evalMapState :: [[t]] -> (Int, Int) -> s -> MapState t s a -> Maybe a
 evalMapState ts coord other m = fst <$> runMapState ts coord other m
